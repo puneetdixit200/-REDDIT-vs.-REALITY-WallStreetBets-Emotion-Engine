@@ -8,8 +8,9 @@ import {
   classifyDelusion,
   classifyMood,
   generateSyntheticSentiment,
-  getCoinCapAssets,
-  getSymbolForCoinCapAsset,
+  getCoinbaseProductIds,
+  normalizeCoinbaseTickerMessage,
+  type CoinbaseTickerMessage,
   type CoinRecord,
   type SentimentPoint
 } from "@/lib/market";
@@ -198,37 +199,55 @@ export function useEmotionEngine() {
 
   useEffect(() => {
     let socket: WebSocket | undefined;
+    let tickTimer = 0;
 
     try {
-      socket = new WebSocket(`wss://ws.coincap.io/prices?assets=${getCoinCapAssets()}`);
-      socket.onopen = () => setStreamState("live");
+      socket = new WebSocket("wss://ws-feed.exchange.coinbase.com");
+      socket.onopen = () => {
+        socket?.send(
+          JSON.stringify({
+            type: "subscribe",
+            product_ids: getCoinbaseProductIds(),
+            channels: ["ticker"]
+          })
+        );
+        tickTimer = window.setTimeout(() => setStreamState("fallback"), 12_000);
+      };
       socket.onerror = () => setStreamState("fallback");
       socket.onclose = () => setStreamState((state) => (state === "live" ? "fallback" : state));
       socket.onmessage = (event) => {
-        const payload = JSON.parse(String(event.data)) as Record<string, string>;
+        const payload = JSON.parse(String(event.data)) as CoinbaseTickerMessage;
+        const quote = normalizeCoinbaseTickerMessage(payload);
+        if (!quote) {
+          return;
+        }
+
+        window.clearTimeout(tickTimer);
+        setStreamState("live");
         const now = Date.now();
 
         setCoins((current) =>
           current.map((coin) => {
-            const asset = Object.entries(payload).find(
-              ([key]) => getSymbolForCoinCapAsset(key) === coin.symbol
-            );
-            const price = asset ? Number(asset[1]) : Number.NaN;
-            if (!Number.isFinite(price)) {
+            if (quote.symbol !== coin.symbol) {
               return coin;
             }
 
-            const nextHistory = appendPriceTick(coin.history, { time: now, value: price }, 320);
-            const first = nextHistory[0]?.value ?? price;
-            const change24h = ((price - first) / first) * 100;
+            const nextHistory = appendPriceTick(
+              coin.history,
+              { time: now, value: quote.currentPrice },
+              320
+            );
+            const first = nextHistory[0]?.value ?? quote.currentPrice;
+            const change24h =
+              quote.change24h ?? ((quote.currentPrice - first) / first) * 100;
 
             return {
               ...coin,
-              currentPrice: price,
+              currentPrice: quote.currentPrice,
               change24h,
               history: nextHistory,
               sparkline: nextHistory.map((point) => point.value),
-              lastUpdated: new Date(now).toISOString()
+              lastUpdated: quote.lastUpdated ?? new Date(now).toISOString()
             };
           })
         );
@@ -238,6 +257,7 @@ export function useEmotionEngine() {
     }
 
     return () => {
+      window.clearTimeout(tickTimer);
       socket?.close();
     };
   }, []);

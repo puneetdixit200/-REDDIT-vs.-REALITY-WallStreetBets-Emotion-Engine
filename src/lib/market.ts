@@ -38,7 +38,7 @@ export type CoinRecord = {
   lastUpdated: string;
 };
 
-export type PriceProviderSource = "binance-us" | "kraken" | "coinbase";
+export type PriceProviderSource = "binance-us" | "kraken" | "coinbase" | "coinbase-ws";
 
 export type ProviderQuote = {
   symbol: string;
@@ -90,6 +90,14 @@ export type CoinbaseSpotPayload = {
     base?: string;
     currency?: string;
   };
+};
+
+export type CoinbaseTickerMessage = {
+  type?: string;
+  product_id?: string;
+  price?: string;
+  open_24h?: string;
+  time?: string;
 };
 
 type ListeningInput = {
@@ -330,6 +338,34 @@ export function normalizeCoinbaseSpot(payload: CoinbaseSpotPayload): ProviderQuo
   };
 }
 
+export function normalizeCoinbaseTickerMessage(
+  payload: CoinbaseTickerMessage
+): ProviderQuote | undefined {
+  if (payload.type !== "ticker") {
+    return undefined;
+  }
+
+  const symbol = getSymbolForCoinbaseProduct(payload.product_id ?? "");
+  const currentPrice = Number(payload.price);
+  const open = Number(payload.open_24h);
+  const change24h =
+    Number.isFinite(open) && open > 0
+      ? roundTo(((currentPrice - open) / open) * 100, 4)
+      : undefined;
+
+  if (!symbol || !Number.isFinite(currentPrice)) {
+    return undefined;
+  }
+
+  return {
+    symbol,
+    currentPrice,
+    change24h,
+    source: "coinbase-ws",
+    lastUpdated: payload.time ?? new Date().toISOString()
+  };
+}
+
 export function mergeProviderQuotes(
   quotes: ProviderQuote[],
   timestamp = Date.now()
@@ -428,6 +464,16 @@ export function getCoinCapAssets(): string {
 
 export function getSymbolForCoinCapAsset(asset: string): string | undefined {
   return TRACKED_COINS.find((coin) => coin.coincap === asset)?.symbol;
+}
+
+export function getCoinbaseProductIds(): string[] {
+  return TRACKED_COINS.map((coin) => `${coin.symbol}-USD`);
+}
+
+export function getSymbolForCoinbaseProduct(productId: string): string | undefined {
+  const normalized = productId.toUpperCase();
+
+  return TRACKED_COINS.find((coin) => `${coin.symbol}-USD` === normalized)?.symbol;
 }
 
 export function buildFallbackCoins(timestamp = Date.now()): CoinRecord[] {

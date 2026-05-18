@@ -6,9 +6,11 @@ import {
   classifyDelusion,
   classifyMood,
   generateSyntheticSentiment,
+  getCoinbaseProductIds,
   mergeProviderQuotes,
   normalizeCoinMarkets,
   normalizeBinanceTickerPayload,
+  normalizeCoinbaseTickerMessage,
   normalizeCoinbaseSpot,
   normalizeKrakenTickerPayload,
   normalizeSentimentScore
@@ -134,6 +136,48 @@ describe("market math", () => {
       currentPrice: 76949.675,
       source: "coinbase"
     });
+  });
+
+  it("normalizes Coinbase websocket ticker messages into live price ticks", () => {
+    expect(getCoinbaseProductIds()).toEqual(["BTC-USD", "ETH-USD", "DOGE-USD"]);
+
+    const quote = normalizeCoinbaseTickerMessage({
+      type: "ticker",
+      product_id: "DOGE-USD",
+      price: "0.10413",
+      open_24h: "0.11167",
+      time: "2026-05-18T10:10:00.000000Z"
+    });
+
+    expect(quote).toMatchObject({
+      symbol: "DOGE",
+      currentPrice: 0.10413,
+      source: "coinbase-ws",
+      lastUpdated: "2026-05-18T10:10:00.000000Z"
+    });
+    expect(quote?.change24h).toBeCloseTo(-6.752, 3);
+  });
+
+  it("ignores websocket non-ticker and provider error messages", () => {
+    expect(
+      normalizeCoinbaseTickerMessage({
+        type: "subscriptions",
+        channels: []
+      })
+    ).toBeUndefined();
+    expect(
+      normalizeCoinbaseTickerMessage({
+        type: "error",
+        message: "Unauthorized"
+      })
+    ).toBeUndefined();
+    expect(
+      normalizeCoinbaseTickerMessage({
+        type: "ticker",
+        product_id: "SOL-USD",
+        price: "100"
+      })
+    ).toBeUndefined();
   });
 
   it("merges provider quotes into complete tracked coin records", () => {

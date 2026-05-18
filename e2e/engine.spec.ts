@@ -7,6 +7,10 @@ test("renders the emotion engine and keeps canvases nonblank", async ({ page }, 
   await expect(page.getByText("DELUSION GAP")).toBeVisible();
   await expect(page.getByText("WSB Bingo")).toBeVisible();
   await expect(page.getByText("Live WSB events")).toBeVisible();
+  await expect(page.locator(".status-pill", { hasText: "Socket" })).toContainText("live", {
+    ignoreCase: true,
+    timeout: 20_000
+  });
   await expect(page.getByRole("link", { name: "GitHub puneetdixit200" })).toHaveAttribute(
     "href",
     "https://github.com/puneetdixit200"
