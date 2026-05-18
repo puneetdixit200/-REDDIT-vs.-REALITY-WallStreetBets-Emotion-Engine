@@ -6,7 +6,11 @@ import {
   classifyDelusion,
   classifyMood,
   generateSyntheticSentiment,
+  mergeProviderQuotes,
   normalizeCoinMarkets,
+  normalizeBinanceTickerPayload,
+  normalizeCoinbaseSpot,
+  normalizeKrakenTickerPayload,
   normalizeSentimentScore
 } from "./market";
 
@@ -73,6 +77,79 @@ describe("market math", () => {
       change24h: -2.4,
       sparkline: [64000, 65000]
     });
+  });
+
+  it("normalizes Binance US fallback ticker payloads", () => {
+    const quotes = normalizeBinanceTickerPayload([
+      {
+        symbol: "BTCUSD",
+        lastPrice: "76992.61",
+        priceChangePercent: "-1.505",
+        closeTime: 1779082705294
+      }
+    ]);
+
+    expect(quotes).toEqual([
+      {
+        symbol: "BTC",
+        currentPrice: 76992.61,
+        change24h: -1.505,
+        source: "binance-us",
+        lastUpdated: "2026-05-18T05:38:25.294Z"
+      }
+    ]);
+  });
+
+  it("normalizes Kraken fallback ticker payloads", () => {
+    const quotes = normalizeKrakenTickerPayload({
+      error: [],
+      result: {
+        XXBTZUSD: {
+          c: ["76955.8"],
+          o: "77410.1"
+        },
+        XDGUSD: {
+          c: ["0.1064792"],
+          o: "0.1089299"
+        }
+      }
+    });
+
+    expect(quotes[0]).toMatchObject({
+      symbol: "BTC",
+      currentPrice: 76955.8,
+      source: "kraken"
+    });
+    expect(quotes[0].change24h).toBeCloseTo(-0.5869, 4);
+    expect(quotes[1].symbol).toBe("DOGE");
+  });
+
+  it("normalizes Coinbase spot fallback payloads", () => {
+    expect(
+      normalizeCoinbaseSpot({
+        data: { amount: "76949.675", base: "BTC", currency: "USD" }
+      })
+    ).toMatchObject({
+      symbol: "BTC",
+      currentPrice: 76949.675,
+      source: "coinbase"
+    });
+  });
+
+  it("merges provider quotes into complete tracked coin records", () => {
+    const coins = mergeProviderQuotes(
+      [
+        { symbol: "BTC", currentPrice: 10, change24h: 5, source: "binance-us" },
+        { symbol: "ETH", currentPrice: 20, change24h: -2, source: "kraken" },
+        { symbol: "BTC", currentPrice: 11, change24h: 6, source: "coinbase" }
+      ],
+      1700000000000
+    );
+
+    expect(coins.map((coin) => coin.symbol)).toEqual(["BTC", "ETH"]);
+    expect(coins[0].currentPrice).toBe(10);
+    expect(coins[0].history.at(-1)?.value).toBe(10);
+    expect(coins[0].change24h).toBe(5);
   });
 
   it("appends websocket ticks without letting charts grow forever", () => {

@@ -6,6 +6,8 @@ import {
   Calculator,
   Check,
   CircleDollarSign,
+  ExternalLink,
+  Github,
   History,
   Play,
   Square,
@@ -13,7 +15,6 @@ import {
 } from "lucide-react";
 import {
   BINGO_PHRASES,
-  HISTORICAL_EVENTS,
   type BingoPhrase,
   type HeatmapDay,
   type HistoricalEvent,
@@ -30,11 +31,13 @@ type ControlPanelsProps = {
   activeEvent?: HistoricalEvent;
   activeFrame?: HistoricalFrame;
   audioArmed: boolean;
+  events: HistoricalEvent[];
   bingoHits: BingoPhrase[];
   coins: CoinRecord[];
   delusionState: DelusionState;
   eventPlaying: boolean;
   heatmap: HeatmapDay[];
+  liveEventsSource: string;
   onArmAudio: () => void;
   onPlayEvent: (slug: string) => void;
   onStopEvent: () => void;
@@ -53,11 +56,13 @@ export function ControlPanels({
   activeEvent,
   activeFrame,
   audioArmed,
+  events,
   bingoHits,
   coins,
   delusionState,
   eventPlaying,
   heatmap,
+  liveEventsSource,
   onArmAudio,
   onPlayEvent,
   onStopEvent,
@@ -69,7 +74,9 @@ export function ControlPanels({
       <HistoricalPanel
         activeEvent={activeEvent}
         activeFrame={activeFrame}
+        events={events}
         eventPlaying={eventPlaying}
+        liveEventsSource={liveEventsSource}
         onPlayEvent={onPlayEvent}
         onStopEvent={onStopEvent}
       />
@@ -115,17 +122,22 @@ function BingoCard({ hits }: { hits: BingoPhrase[] }) {
 function HistoricalPanel({
   activeEvent,
   activeFrame,
+  events,
   eventPlaying,
+  liveEventsSource,
   onPlayEvent,
   onStopEvent
 }: {
   activeEvent?: HistoricalEvent;
   activeFrame?: HistoricalFrame;
+  events: HistoricalEvent[];
   eventPlaying: boolean;
+  liveEventsSource: string;
   onPlayEvent: (slug: string) => void;
   onStopEvent: () => void;
 }) {
-  const [selectedSlug, setSelectedSlug] = useState(HISTORICAL_EVENTS[0]?.slug ?? "");
+  const [selectedSlug, setSelectedSlug] = useState(events[0]?.slug ?? "");
+  const selectedEvent = events.find((event) => event.slug === selectedSlug) ?? events[0];
 
   return (
     <article className="tool-card">
@@ -133,22 +145,26 @@ function HistoricalPanel({
         <History size={18} />
         <h2>Delusion Events</h2>
       </header>
+      <div className="live-event-strip">
+        <strong>Live WSB events</strong>
+        <span>{liveEventsSource}</span>
+      </div>
       <label className="field-label" htmlFor="history-select">
         Event
       </label>
       <select
         id="history-select"
-        value={selectedSlug}
+        value={selectedEvent?.slug ?? ""}
         onChange={(event) => setSelectedSlug(event.target.value)}
       >
-        {HISTORICAL_EVENTS.map((event) => (
+        {events.map((event) => (
           <option key={event.slug} value={event.slug}>
             {event.title}
           </option>
         ))}
       </select>
       <div className="button-row">
-        <button type="button" onClick={() => onPlayEvent(selectedSlug)}>
+        <button type="button" onClick={() => selectedEvent && onPlayEvent(selectedEvent.slug)}>
           <Play size={15} />
           Replay
         </button>
@@ -159,12 +175,19 @@ function HistoricalPanel({
       </div>
       <div className="event-readout">
         <strong>{activeEvent?.title ?? "No event loaded"}</strong>
+        {activeEvent?.source ? <em>{activeEvent.source}</em> : null}
         <span>{activeFrame?.label ?? "Pick an event to inject retroactive chaos."}</span>
         {activeFrame ? (
           <small>
             Sentiment {(activeFrame.sentiment * 100).toFixed(0)}% · Price{" "}
             {activeFrame.priceChange.toFixed(0)}%
           </small>
+        ) : null}
+        {activeEvent?.url ? (
+          <a href={activeEvent.url} target="_blank" rel="noreferrer">
+            <ExternalLink size={13} />
+            Open live thread
+          </a>
         ) : null}
       </div>
       <p className="tool-note">{eventPlaying ? "Replay is driving the center gauge." : activeEvent?.caption}</p>
@@ -307,6 +330,19 @@ function SoundBoard({
       <p className="tool-note">
         Current alert mode: <strong style={{ color: delusionState.color }}>{delusionState.label}</strong>
       </p>
+      <a
+        className="github-credit"
+        href="https://github.com/puneetdixit200"
+        target="_blank"
+        rel="noreferrer"
+        aria-label="GitHub puneetdixit200"
+      >
+        <Github size={16} />
+        <span>
+          <strong>GitHub</strong>
+          <small>puneetdixit200</small>
+        </span>
+      </a>
     </article>
   );
 }

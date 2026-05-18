@@ -6,6 +6,11 @@ test("renders the emotion engine and keeps canvases nonblank", async ({ page }, 
   await expect(page.getByRole("heading", { name: "REDDIT vs. REALITY" })).toBeVisible();
   await expect(page.getByText("DELUSION GAP")).toBeVisible();
   await expect(page.getByText("WSB Bingo")).toBeVisible();
+  await expect(page.getByText("Live WSB events")).toBeVisible();
+  await expect(page.getByRole("link", { name: "GitHub puneetdixit200" })).toHaveAttribute(
+    "href",
+    "https://github.com/puneetdixit200"
+  );
 
   await page.locator(".coin-selector button", { hasText: "DOGE" }).click();
   await expect(page.getByRole("heading", { name: "Dogecoin LIVE PRICE" })).toBeVisible();

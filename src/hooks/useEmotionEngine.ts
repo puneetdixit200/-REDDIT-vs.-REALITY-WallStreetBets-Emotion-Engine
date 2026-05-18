@@ -16,6 +16,7 @@ import {
 import {
   buildSentimentHeatmap,
   detectBingoHits,
+  fallbackLiveEvents,
   frameToSentimentPoint,
   HISTORICAL_EVENTS,
   type HistoricalEvent
@@ -33,6 +34,13 @@ type SentimentPayload = {
   comments: string[];
   source: string;
   degraded: boolean;
+  updatedAt: string;
+  error?: string;
+};
+
+type EventsPayload = {
+  events: HistoricalEvent[];
+  source: string;
   updatedAt: string;
   error?: string;
 };
@@ -82,6 +90,10 @@ export function useEmotionEngine() {
   const [activeEvent, setActiveEvent] = useState<HistoricalEvent | undefined>();
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
   const [eventPlaying, setEventPlaying] = useState(false);
+  const [liveEvents, setLiveEvents] = useState<HistoricalEvent[]>(() =>
+    fallbackLiveEvents(INITIAL_TIMESTAMP)
+  );
+  const [liveEventsSource, setLiveEventsSource] = useState("live-fallback");
   const streamStateRef = useRef<StreamState>("connecting");
 
   const selectedCoin = useMemo(
@@ -103,6 +115,10 @@ export function useEmotionEngine() {
   const mood = classifyMood(effectiveSentiment);
   const heatmap = useMemo(() => buildSentimentHeatmap(sentimentHistory), [sentimentHistory]);
   const bingoHits = useMemo(() => detectBingoHits(comments), [comments]);
+  const availableEvents = useMemo(
+    () => [...liveEvents, ...HISTORICAL_EVENTS],
+    [liveEvents]
+  );
 
   const fetchPrices = useCallback(async () => {
     try {
@@ -141,21 +157,40 @@ export function useEmotionEngine() {
     }
   }, []);
 
+  const fetchLiveEvents = useCallback(async () => {
+    try {
+      const response = await fetch("/api/events", { cache: "no-store" });
+      const payload = (await response.json()) as EventsPayload;
+      if (!payload.events?.length) {
+        throw new Error(payload.error ?? "No live event records");
+      }
+
+      setLiveEvents(payload.events);
+      setLiveEventsSource(payload.source);
+    } catch {
+      setLiveEvents(fallbackLiveEvents());
+      setLiveEventsSource("live-fallback");
+    }
+  }, []);
+
   useEffect(() => {
     const initialTimer = window.setTimeout(() => {
       fetchPrices();
       fetchSentiment();
+      fetchLiveEvents();
     }, 0);
 
     const priceTimer = window.setInterval(fetchPrices, 90_000);
     const sentimentTimer = window.setInterval(fetchSentiment, 60_000);
+    const eventsTimer = window.setInterval(fetchLiveEvents, 120_000);
 
     return () => {
       window.clearTimeout(initialTimer);
       window.clearInterval(priceTimer);
       window.clearInterval(sentimentTimer);
+      window.clearInterval(eventsTimer);
     };
-  }, [fetchPrices, fetchSentiment]);
+  }, [fetchLiveEvents, fetchPrices, fetchSentiment]);
 
   useEffect(() => {
     streamStateRef.current = streamState;
@@ -281,11 +316,11 @@ export function useEmotionEngine() {
   }, [activeFrame, selectedSymbol]);
 
   const playHistoricalEvent = useCallback((slug: string) => {
-    const event = HISTORICAL_EVENTS.find((candidate) => candidate.slug === slug);
+    const event = availableEvents.find((candidate) => candidate.slug === slug);
     setActiveEvent(event);
     setActiveFrameIndex(0);
     setEventPlaying(Boolean(event));
-  }, []);
+  }, [availableEvents]);
 
   const stopHistoricalEvent = useCallback(() => {
     setEventPlaying(false);
@@ -297,6 +332,7 @@ export function useEmotionEngine() {
     activeEvent,
     activeFrame,
     audioArmed,
+    availableEvents,
     bingoHits,
     coins,
     comments,
@@ -307,6 +343,7 @@ export function useEmotionEngine() {
     eventPlaying,
     heatmap,
     latestSentiment,
+    liveEventsSource,
     mood,
     playHistoricalEvent,
     priceSource,

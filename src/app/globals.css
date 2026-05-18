@@ -493,6 +493,26 @@ h2 {
   font-weight: 700;
 }
 
+.live-event-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(0, 255, 65, 0.22);
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: rgba(0, 255, 65, 0.06);
+  color: var(--phosphor);
+  font-size: 0.75rem;
+}
+
+.live-event-strip span {
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  text-transform: uppercase;
+}
+
 select,
 input {
   width: 100%;
@@ -546,6 +566,32 @@ input {
   color: var(--muted);
 }
 
+.event-readout em {
+  width: fit-content;
+  border: 1px solid rgba(240, 185, 11, 0.32);
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: var(--gold);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.66rem;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.event-readout a,
+.github-credit {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.event-readout a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--gold);
+  font-size: 0.76rem;
+}
+
 .tool-note {
   margin: 10px 0 0;
   font-size: 0.78rem;
@@ -589,6 +635,32 @@ input {
   border-color: rgba(240, 185, 11, 0.5);
   background: rgba(240, 185, 11, 0.1);
   color: var(--gold);
+}
+
+.github-credit {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.github-credit span {
+  display: grid;
+  gap: 2px;
+}
+
+.github-credit strong {
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+.github-credit small {
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
 }
 
 @keyframes tickerMove {

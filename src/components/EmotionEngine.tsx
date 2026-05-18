@@ -149,11 +149,13 @@ export function EmotionEngine() {
         activeEvent={engine.activeEvent}
         activeFrame={engine.activeFrame}
         audioArmed={engine.audioArmed}
+        events={engine.availableEvents}
         bingoHits={engine.bingoHits}
         coins={engine.coins}
         delusionState={engine.delusionState}
         eventPlaying={engine.eventPlaying}
         heatmap={engine.heatmap}
+        liveEventsSource={engine.liveEventsSource}
         onArmAudio={() => engine.setAudioArmed(true)}
         onPlayEvent={engine.playHistoricalEvent}
         onStopEvent={engine.stopHistoricalEvent}

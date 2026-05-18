@@ -38,6 +38,16 @@ export type CoinRecord = {
   lastUpdated: string;
 };
 
+export type PriceProviderSource = "binance-us" | "kraken" | "coinbase";
+
+export type ProviderQuote = {
+  symbol: string;
+  currentPrice: number;
+  change24h?: number | undefined;
+  source: PriceProviderSource;
+  lastUpdated?: string | undefined;
+};
+
 export type CoinGeckoMarket = {
   id?: string;
   symbol?: string;
@@ -56,6 +66,32 @@ export type CoinGeckoMarketChart = {
   prices?: Array<[number, number]>;
 };
 
+export type BinanceTicker = {
+  symbol?: string;
+  lastPrice?: string;
+  priceChangePercent?: string;
+  closeTime?: number;
+};
+
+export type KrakenTickerPayload = {
+  error?: string[];
+  result?: Record<
+    string,
+    {
+      c?: string[];
+      o?: string;
+    }
+  >;
+};
+
+export type CoinbaseSpotPayload = {
+  data?: {
+    amount?: string;
+    base?: string;
+    currency?: string;
+  };
+};
+
 type ListeningInput = {
   symbol: string;
   currentPrice: number;
@@ -69,6 +105,18 @@ export const TRACKED_COINS = [
   { id: "ethereum", symbol: "ETH", coincap: "ethereum" },
   { id: "dogecoin", symbol: "DOGE", coincap: "dogecoin" }
 ] as const;
+
+const coinNames: Record<string, string> = {
+  BTC: "Bitcoin",
+  ETH: "Ethereum",
+  DOGE: "Dogecoin"
+};
+
+const coinIds: Record<string, string> = {
+  BTC: "bitcoin",
+  ETH: "ethereum",
+  DOGE: "dogecoin"
+};
 
 const fallbackComments = [
   "BTC diamond hands into the void",
@@ -207,6 +255,126 @@ export function normalizeCoinMarkets(markets: CoinGeckoMarket[]): CoinRecord[] {
     }));
 }
 
+export function normalizeBinanceTickerPayload(payload: BinanceTicker[]): ProviderQuote[] {
+  return payload.flatMap((ticker) => {
+    const symbol = ticker.symbol?.replace(/USD$/, "").toUpperCase();
+    const currentPrice = Number(ticker.lastPrice);
+    const change24h = Number(ticker.priceChangePercent);
+
+    if (!symbol || !isTrackedSymbol(symbol) || !Number.isFinite(currentPrice)) {
+      return [];
+    }
+
+    const quote: ProviderQuote = {
+      symbol,
+      currentPrice,
+      change24h: Number.isFinite(change24h) ? roundTo(change24h, 4) : undefined,
+      source: "binance-us",
+      lastUpdated: ticker.closeTime
+        ? new Date(ticker.closeTime).toISOString()
+        : new Date().toISOString()
+    };
+
+    return [quote];
+  });
+}
+
+export function normalizeKrakenTickerPayload(payload: KrakenTickerPayload): ProviderQuote[] {
+  const symbolByPair: Record<string, string> = {
+    XXBTZUSD: "BTC",
+    XBTUSD: "BTC",
+    XETHZUSD: "ETH",
+    ETHUSD: "ETH",
+    XDGUSD: "DOGE",
+    DOGEUSD: "DOGE"
+  };
+
+  return Object.entries(payload.result ?? {}).flatMap(([pair, ticker]) => {
+    const symbol = symbolByPair[pair];
+    const currentPrice = Number(ticker.c?.[0]);
+    const open = Number(ticker.o);
+    const change24h =
+      Number.isFinite(open) && open > 0
+        ? roundTo(((currentPrice - open) / open) * 100, 4)
+        : undefined;
+
+    if (!symbol || !Number.isFinite(currentPrice)) {
+      return [];
+    }
+
+    const quote: ProviderQuote = {
+      symbol,
+      currentPrice,
+      change24h,
+      source: "kraken",
+      lastUpdated: new Date().toISOString()
+    };
+
+    return [quote];
+  });
+}
+
+export function normalizeCoinbaseSpot(payload: CoinbaseSpotPayload): ProviderQuote | undefined {
+  const symbol = payload.data?.base?.toUpperCase();
+  const currentPrice = Number(payload.data?.amount);
+
+  if (!symbol || !isTrackedSymbol(symbol) || !Number.isFinite(currentPrice)) {
+    return undefined;
+  }
+
+  return {
+    symbol,
+    currentPrice,
+    source: "coinbase",
+    lastUpdated: new Date().toISOString()
+  };
+}
+
+export function mergeProviderQuotes(
+  quotes: ProviderQuote[],
+  timestamp = Date.now()
+): CoinRecord[] {
+  const bySymbol = new Map<string, ProviderQuote>();
+
+  quotes.forEach((quote) => {
+    if (!isTrackedSymbol(quote.symbol) || bySymbol.has(quote.symbol)) {
+      return;
+    }
+
+    bySymbol.set(quote.symbol, quote);
+  });
+
+  return TRACKED_COINS.flatMap((tracked) => {
+    const quote = bySymbol.get(tracked.symbol);
+    if (!quote) {
+      return [];
+    }
+
+    const history = buildHistoryFromQuote(quote, timestamp);
+
+    return [
+      {
+        id: coinIds[tracked.symbol],
+        symbol: tracked.symbol,
+        name: coinNames[tracked.symbol],
+        currentPrice: quote.currentPrice,
+        change24h: roundTo(quote.change24h ?? calculateChangeFromHistory(history), 4),
+        marketCap: Math.round(
+          quote.currentPrice *
+            (tracked.symbol === "DOGE"
+              ? 154_000_000_000
+              : tracked.symbol === "ETH"
+                ? 120_000_000
+                : 20_000_000)
+        ),
+        sparkline: history.map((point) => point.value),
+        history,
+        lastUpdated: quote.lastUpdated ?? new Date(timestamp).toISOString()
+      }
+    ];
+  });
+}
+
 export function normalizeMarketChart(chart: CoinGeckoMarketChart): PricePoint[] {
   return (chart.prices ?? [])
     .filter(([time, value]) => Number.isFinite(time) && Number.isFinite(value))
@@ -288,7 +456,7 @@ export function buildFallbackCoins(timestamp = Date.now()): CoinRecord[] {
     return {
       id: coin.id,
       symbol: coin.symbol,
-      name: coin.symbol === "BTC" ? "Bitcoin" : coin.symbol === "ETH" ? "Ethereum" : "Dogecoin",
+      name: coinNames[coin.symbol],
       currentPrice: last,
       change24h,
       marketCap: Math.round(last * (coin.symbol === "DOGE" ? 154_000_000_000 : coin.symbol === "ETH" ? 120_000_000 : 20_000_000)),
@@ -297,4 +465,37 @@ export function buildFallbackCoins(timestamp = Date.now()): CoinRecord[] {
       lastUpdated: new Date(timestamp).toISOString()
     };
   });
+}
+
+function isTrackedSymbol(symbol: string): symbol is (typeof TRACKED_COINS)[number]["symbol"] {
+  return TRACKED_COINS.some((coin) => coin.symbol === symbol);
+}
+
+function buildHistoryFromQuote(quote: ProviderQuote, timestamp: number): PricePoint[] {
+  const digits = quote.symbol === "DOGE" ? 6 : 2;
+  const current = quote.currentPrice;
+  const change = clamp(quote.change24h ?? 0, -95, 200);
+  const open = current / (1 + change / 100);
+
+  return Array.from({ length: 96 }, (_, index) => {
+    const progress = index / 95;
+    const wave = Math.sin(index * 0.55 + current / 1000) * Math.abs(change || 0.8) * 0.0009;
+    const value = index === 95 ? current : open + (current - open) * progress + current * wave;
+
+    return {
+      time: timestamp - (95 - index) * 15 * 60 * 1000,
+      value: roundTo(value, digits)
+    };
+  });
+}
+
+function calculateChangeFromHistory(history: PricePoint[]): number {
+  const first = history[0]?.value;
+  const last = history.at(-1)?.value;
+
+  if (!first || !last) {
+    return 0;
+  }
+
+  return ((last - first) / first) * 100;
 }
