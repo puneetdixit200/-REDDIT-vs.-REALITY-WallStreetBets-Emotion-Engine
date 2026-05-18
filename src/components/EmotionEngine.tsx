@@ -4,10 +4,8 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import {
   Activity,
-  CandlestickChart,
   HeartPulse,
   Radio,
-  Siren,
   TrendingDown,
   TrendingUp,
   Volume2,
@@ -44,12 +42,8 @@ export function EmotionEngine() {
     <main className={`engine ${engine.delusionState.alert ? "red-alert" : ""}`}>
       <header className="top-bar">
         <div className="brand-lockup">
-          <div className="brand-mark" aria-hidden="true">
-            <Siren size={20} />
-            <CandlestickChart size={20} />
-          </div>
           <div>
-          <span className="eyebrow">Live WSB Emotion Engine</span>
+            <span className="eyebrow">Live WSB Emotion Engine</span>
             <h1>REDDIT vs REALITY</h1>
           </div>
         </div>

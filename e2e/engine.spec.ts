@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 test("renders the emotion engine and keeps canvases nonblank", async ({ page }, testInfo) => {
   await page.goto("/");
 
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", /icon/);
+  await expect(page.locator(".brand-mark")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "REDDIT vs REALITY" })).toBeVisible();
   await expect(page.getByText("DELUSION GAP")).toBeVisible();
   await expect(page.getByText("WSB Bingo")).toBeVisible();
