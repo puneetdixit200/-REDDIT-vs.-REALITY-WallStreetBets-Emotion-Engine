@@ -4,8 +4,10 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import {
   Activity,
+  CandlestickChart,
   HeartPulse,
   Radio,
+  Siren,
   TrendingDown,
   TrendingUp,
   Volume2,
@@ -41,9 +43,15 @@ export function EmotionEngine() {
   return (
     <main className={`engine ${engine.delusionState.alert ? "red-alert" : ""}`}>
       <header className="top-bar">
-        <div>
+        <div className="brand-lockup">
+          <div className="brand-mark" aria-hidden="true">
+            <Siren size={20} />
+            <CandlestickChart size={20} />
+          </div>
+          <div>
           <span className="eyebrow">Live WSB Emotion Engine</span>
-          <h1>REDDIT vs. REALITY</h1>
+            <h1>REDDIT vs REALITY</h1>
+          </div>
         </div>
         <div className="status-strip">
           <StatusPill icon={<Radio size={15} />} label="Price" value={engine.priceSource} />
@@ -161,6 +169,19 @@ export function EmotionEngine() {
         onStopEvent={engine.stopHistoricalEvent}
         selectedCoin={selectedCoin}
       />
+
+      <a
+        className="made-with-credit"
+        href="https://github.com/puneetdixit200"
+        target="_blank"
+        rel="noreferrer"
+        aria-label="Made with heart by PUNEET DIXIT"
+      >
+        <span>Made with</span>
+        <strong aria-hidden="true">♥</strong>
+        <span>by</span>
+        <b>PUNEET DIXIT</b>
+      </a>
     </main>
   );
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "REDDIT vs. REALITY | WSB Emotion Engine",
+  title: "REDDIT vs REALITY",
   description:
     "A live data-art dashboard comparing WallStreetBets sentiment to crypto price reality."
 };

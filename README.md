@@ -1,8 +1,8 @@
-# REDDIT vs. REALITY - WallStreetBets Emotion Engine
+# REDDIT vs REALITY
 
 Live data-art dashboard that compares WallStreetBets hype against crypto market reality.
 
-![REDDIT vs. REALITY app screenshot](docs/assets/app-screenshot.png)
+![REDDIT vs REALITY app screenshot](docs/assets/app-screenshot.png)
 
 ## What Users Get
 

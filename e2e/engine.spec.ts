@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("renders the emotion engine and keeps canvases nonblank", async ({ page }, testInfo) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "REDDIT vs. REALITY" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "REDDIT vs REALITY" })).toBeVisible();
   await expect(page.getByText("DELUSION GAP")).toBeVisible();
   await expect(page.getByText("WSB Bingo")).toBeVisible();
   await expect(page.getByText("Live WSB events")).toBeVisible();
@@ -12,7 +12,7 @@ test("renders the emotion engine and keeps canvases nonblank", async ({ page }, 
     timeout: 20_000
   });
   await expect(page.locator(".ticker-track")).toHaveCSS("animation-duration", "56s");
-  await expect(page.getByRole("link", { name: "GitHub puneetdixit200" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Made with heart by PUNEET DIXIT" })).toHaveAttribute(
     "href",
     "https://github.com/puneetdixit200"
   );

@@ -7,7 +7,6 @@ import {
   Check,
   CircleDollarSign,
   ExternalLink,
-  Github,
   History,
   Play,
   Square,
@@ -330,19 +329,6 @@ function SoundBoard({
       <p className="tool-note">
         Current alert mode: <strong style={{ color: delusionState.color }}>{delusionState.label}</strong>
       </p>
-      <a
-        className="github-credit"
-        href="https://github.com/puneetdixit200"
-        target="_blank"
-        rel="noreferrer"
-        aria-label="GitHub puneetdixit200"
-      >
-        <Github size={16} />
-        <span>
-          <strong>GitHub</strong>
-          <small>puneetdixit200</small>
-        </span>
-      </a>
     </article>
   );
 }
