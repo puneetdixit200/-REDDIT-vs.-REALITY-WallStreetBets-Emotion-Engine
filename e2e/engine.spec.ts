@@ -11,6 +11,16 @@ test("renders the emotion engine and keeps canvases nonblank", async ({ page }, 
   await expect(page.getByText("Live WSB events")).toBeVisible();
   await expect(page.getByText("Degen Alert Tape")).toBeVisible();
   await expect(page.getByText("Anomaly Radar")).toBeVisible();
+  await expect(page.locator(".alert-tape-item")).toHaveCount(4);
+  await expect(page.locator(".alert-tape-separator")).toHaveCount(3);
+  await expect(page.locator(".alert-tape-track")).toHaveCSS("animation-name", "none");
+  const alertTapeText = await page.locator(".alert-tape").textContent();
+  expect(alertTapeText).not.toMatch(/CopiumWSB|coingeckoEvents|spikeBTC/);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)
+    )
+    .toBe(true);
   await expect(page.locator(".status-pill", { hasText: "Socket" })).toContainText("live", {
     ignoreCase: true,
     timeout: 20_000

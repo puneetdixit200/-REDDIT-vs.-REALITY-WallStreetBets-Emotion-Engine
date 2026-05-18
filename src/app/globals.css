@@ -444,8 +444,10 @@ h2 {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 10px;
+  width: min(100%, 1680px);
   max-width: 1680px;
   margin: 14px auto 0;
+  overflow: hidden;
   border: 1px solid rgba(240, 185, 11, 0.28);
   border-radius: 8px;
   padding: 9px 10px;
@@ -467,25 +469,47 @@ h2 {
 
 .alert-tape-window {
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
 }
 
 .alert-tape-track {
   display: flex;
-  width: max-content;
-  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
   color: var(--ink);
   font-family: "JetBrains Mono", monospace;
   font-size: 0.78rem;
   white-space: nowrap;
-  animation: tickerMove 42s linear infinite;
 }
 
-.alert-tape-track span {
+.alert-tape-group {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  align-items: center;
+}
+
+.alert-tape-item {
+  display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: clamp(150px, 21vw, 360px);
+  align-items: center;
+  overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 8px;
   padding: 6px 9px;
   background: rgba(255, 255, 255, 0.04);
+  text-overflow: ellipsis;
+}
+
+.alert-tape-separator {
+  flex: 0 0 auto;
+  padding: 0 12px;
+  color: var(--gold);
+  opacity: 0.78;
 }
 
 .control-grid {

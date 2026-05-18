@@ -204,8 +204,15 @@ function AlertTape({ alert, items }: { alert: boolean; items: string[] }) {
       <h2>Degen Alert Tape</h2>
       <div className="alert-tape-window">
         <div className="alert-tape-track">
-          {[...items, ...items].map((item, index) => (
-            <span key={`${item}-${index}`}>{item}</span>
+          {items.map((item, index) => (
+            <span className="alert-tape-group" key={`${item}-${index}`}>
+              <span className="alert-tape-item">{item}</span>
+              {index < items.length - 1 ? (
+                <span className="alert-tape-separator" aria-hidden="true">
+                  {" | "}
+                </span>
+              ) : null}
+            </span>
           ))}
         </div>
       </div>
