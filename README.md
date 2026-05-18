@@ -11,7 +11,7 @@ Live data-art dashboard that compares WallStreetBets hype against crypto market 
 - BTC, ETH, and DOGE market prices from CoinGecko, plus live Coinbase WebSocket ticks.
 - A center "Delusion Gap" gauge that compares crowd sentiment with actual 24h price movement.
 - Live delusion events from ApeWisdom, Yahoo Finance trending symbols, and CoinGecko trending crypto.
-- A Degen Alert Tape that turns the current gap, socket state, price source, and live event source into a scrolling incident feed.
+- A Degen Alert Tape that turns the current gap, socket state, price source, and live event source into a stable separated chip feed.
 - An Anomaly Radar that ranks the most disconnected live/historical events by maximum delusion gap and lets users inject them into the gauge.
 - WSB bingo, historical delusion replay, sentiment heatmap, and an "If You Listened" calculator.
 - Desktop and mobile responsive UI with Playwright coverage.
