@@ -11,6 +11,7 @@ test("renders the emotion engine and keeps canvases nonblank", async ({ page }, 
     ignoreCase: true,
     timeout: 20_000
   });
+  await expect(page.locator(".ticker-track")).toHaveCSS("animation-duration", "56s");
   await expect(page.getByRole("link", { name: "GitHub puneetdixit200" })).toHaveAttribute(
     "href",
     "https://github.com/puneetdixit200"

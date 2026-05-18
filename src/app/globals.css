@@ -233,7 +233,7 @@ h2 {
   font-family: "JetBrains Mono", monospace;
   font-size: 0.84rem;
   white-space: nowrap;
-  animation: tickerMove 28s linear infinite;
+  animation: tickerMove 56s linear infinite;
 }
 
 .emoji-rain {
