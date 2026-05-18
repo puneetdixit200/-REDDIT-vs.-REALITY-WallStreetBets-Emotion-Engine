@@ -5,10 +5,12 @@ import {
   detectBingoHits,
   fallbackLiveEvents,
   loadHistoricalEvent,
+  normalizeFearGreedEvents,
   normalizeApeWisdomLiveEvents,
   normalizeApeWisdomSentiment,
   normalizeMarketTrendingEvents,
-  normalizeRedditLiveEvents
+  normalizeRedditLiveEvents,
+  rankDelusionEvents
 } from "./culture";
 
 describe("WSB culture helpers", () => {
@@ -182,6 +184,55 @@ describe("WSB culture helpers", () => {
     ]);
     expect(events[0].title).toContain("BTC-USD");
     expect(events[2].title).toContain("Hyperliquid");
+  });
+
+  it("normalizes the no-key Fear and Greed index into a playable live event", () => {
+    const events = normalizeFearGreedEvents(
+      {
+        data: [
+          {
+            value: "78",
+            value_classification: "Extreme Greed",
+            timestamp: "1779062400"
+          }
+        ]
+      },
+      1779075000000
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      slug: "live-fear-greed-extreme-greed",
+      source: "fear-greed",
+      title: "LIVE: Crypto Fear & Greed prints Extreme Greed (78)"
+    });
+    expect(events[0].frames).toHaveLength(4);
+    expect(events[0].frames[1].sentiment).toBeGreaterThan(0.5);
+    expect(events[0].frames[2].priceChange).toBeLessThan(0);
+  });
+
+  it("ranks delusion events by their maximum frame gap", () => {
+    const ranked = rankDelusionEvents([
+      {
+        slug: "quiet",
+        title: "Quiet",
+        caption: "low gap",
+        frames: [{ label: "Aligned", sentiment: 0.1, priceChange: 8, volume: 1 }]
+      },
+      {
+        slug: "detached",
+        title: "Detached",
+        caption: "high gap",
+        frames: [{ label: "Opposite", sentiment: 0.92, priceChange: -18, volume: 1 }]
+      }
+    ]);
+
+    expect(ranked[0]).toMatchObject({
+      slug: "detached",
+      maxGap: 100,
+      trigger: "Opposite"
+    });
+    expect(ranked[1].slug).toBe("quiet");
   });
 
   it("provides deterministic live-event fallbacks", () => {

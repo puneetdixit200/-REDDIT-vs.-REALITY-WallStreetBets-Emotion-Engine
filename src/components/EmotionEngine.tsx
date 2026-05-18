@@ -26,6 +26,12 @@ export function EmotionEngine() {
   const alertPlayedRef = useRef(false);
   const selectedCoin = engine.selectedCoin;
   const pricePositive = (selectedCoin?.change24h ?? 0) >= 0;
+  const chaosTapeItems = [
+    `${engine.selectedSymbol} gap ${engine.delusionGap.toFixed(0)}%: ${engine.delusionState.label}`,
+    `WSB ${(engine.effectiveSentiment * 100).toFixed(0)}% vs market ${engine.effectivePriceChange >= 0 ? "+" : ""}${engine.effectivePriceChange.toFixed(1)}%`,
+    `Socket ${engine.streamState.toUpperCase()} / prices ${engine.priceSource}`,
+    `Events ${engine.liveEventsSource} / top replay ${engine.availableEvents[0]?.title.replace(/^LIVE:\s*/, "") ?? "loading"}`
+  ];
 
   useEffect(() => {
     if (engine.delusionState.alert && engine.audioArmed && !alertPlayedRef.current) {
@@ -147,6 +153,8 @@ export function EmotionEngine() {
         </section>
       </section>
 
+      <AlertTape items={chaosTapeItems} alert={engine.delusionState.alert} />
+
       <ControlPanels
         activeEvent={engine.activeEvent}
         activeFrame={engine.activeFrame}
@@ -154,14 +162,21 @@ export function EmotionEngine() {
         events={engine.availableEvents}
         bingoHits={engine.bingoHits}
         coins={engine.coins}
+        delusionGap={engine.delusionGap}
         delusionState={engine.delusionState}
+        effectivePriceChange={engine.effectivePriceChange}
+        effectiveSentiment={engine.effectiveSentiment}
         eventPlaying={engine.eventPlaying}
         heatmap={engine.heatmap}
         liveEventsSource={engine.liveEventsSource}
         onArmAudio={() => engine.setAudioArmed(true)}
         onPlayEvent={engine.playHistoricalEvent}
         onStopEvent={engine.stopHistoricalEvent}
+        priceSource={engine.priceSource}
         selectedCoin={selectedCoin}
+        selectedSymbol={engine.selectedSymbol}
+        sentimentSource={engine.sentimentSource}
+        streamState={engine.streamState}
       />
 
       <a
@@ -177,6 +192,24 @@ export function EmotionEngine() {
         <b>PUNEET DIXIT</b>
       </a>
     </main>
+  );
+}
+
+function AlertTape({ alert, items }: { alert: boolean; items: string[] }) {
+  return (
+    <section
+      className={`alert-tape ${alert ? "alert-tape-critical" : ""}`}
+      aria-label="Degen alert tape"
+    >
+      <h2>Degen Alert Tape</h2>
+      <div className="alert-tape-window">
+        <div className="alert-tape-track">
+          {[...items, ...items].map((item, index) => (
+            <span key={`${item}-${index}`}>{item}</span>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 

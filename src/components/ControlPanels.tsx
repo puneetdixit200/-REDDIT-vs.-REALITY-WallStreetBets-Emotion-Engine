@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import {
   BINGO_PHRASES,
+  rankDelusionEvents,
   type BingoPhrase,
   type HeatmapDay,
   type HistoricalEvent,
@@ -33,14 +34,21 @@ type ControlPanelsProps = {
   events: HistoricalEvent[];
   bingoHits: BingoPhrase[];
   coins: CoinRecord[];
+  delusionGap: number;
   delusionState: DelusionState;
+  effectivePriceChange: number;
+  effectiveSentiment: number;
   eventPlaying: boolean;
   heatmap: HeatmapDay[];
   liveEventsSource: string;
   onArmAudio: () => void;
   onPlayEvent: (slug: string) => void;
   onStopEvent: () => void;
+  priceSource: string;
   selectedCoin?: CoinRecord;
+  selectedSymbol: string;
+  sentimentSource: string;
+  streamState: string;
 };
 
 const soundCues: Array<{ cue: SoundCue; label: string }> = [
@@ -58,14 +66,21 @@ export function ControlPanels({
   events,
   bingoHits,
   coins,
+  delusionGap,
   delusionState,
+  effectivePriceChange,
+  effectiveSentiment,
   eventPlaying,
   heatmap,
   liveEventsSource,
   onArmAudio,
   onPlayEvent,
   onStopEvent,
-  selectedCoin
+  priceSource,
+  selectedCoin,
+  selectedSymbol,
+  sentimentSource,
+  streamState
 }: ControlPanelsProps) {
   return (
     <section className="control-grid" aria-label="WSB chaos controls">
@@ -85,6 +100,17 @@ export function ControlPanels({
         audioArmed={audioArmed}
         delusionState={delusionState}
         onArmAudio={onArmAudio}
+      />
+      <ChaosConsole
+        delusionGap={delusionGap}
+        effectivePriceChange={effectivePriceChange}
+        effectiveSentiment={effectiveSentiment}
+        events={events}
+        onPlayEvent={onPlayEvent}
+        priceSource={priceSource}
+        selectedSymbol={selectedSymbol}
+        sentimentSource={sentimentSource}
+        streamState={streamState}
       />
     </section>
   );
@@ -329,6 +355,82 @@ function SoundBoard({
       <p className="tool-note">
         Current alert mode: <strong style={{ color: delusionState.color }}>{delusionState.label}</strong>
       </p>
+    </article>
+  );
+}
+
+function ChaosConsole({
+  delusionGap,
+  effectivePriceChange,
+  effectiveSentiment,
+  events,
+  onPlayEvent,
+  priceSource,
+  selectedSymbol,
+  sentimentSource,
+  streamState
+}: {
+  delusionGap: number;
+  effectivePriceChange: number;
+  effectiveSentiment: number;
+  events: HistoricalEvent[];
+  onPlayEvent: (slug: string) => void;
+  priceSource: string;
+  selectedSymbol: string;
+  sentimentSource: string;
+  streamState: string;
+}) {
+  const rankedEvents = useMemo(() => rankDelusionEvents(events, 4), [events]);
+  const verdict =
+    delusionGap > 85
+      ? "Reality Disconnect"
+      : delusionGap > 60
+        ? "Crowd Drift"
+        : delusionGap > 30
+          ? "Mixed Signal"
+          : "Data Aligned";
+
+  return (
+    <article className="tool-card chaos-card">
+      <header>
+        <BadgeAlert size={18} />
+        <h2>Anomaly Radar</h2>
+      </header>
+      <div className="chaos-readout">
+        <span>Live verdict</span>
+        <strong>{verdict}</strong>
+        <small>
+          {selectedSymbol}: sentiment {(effectiveSentiment * 100).toFixed(0)}% vs price{" "}
+          {effectivePriceChange >= 0 ? "+" : ""}
+          {effectivePriceChange.toFixed(1)}%
+        </small>
+      </div>
+      <div className="source-grid">
+        <span>
+          Price <strong>{priceSource}</strong>
+        </span>
+        <span>
+          WSB <strong>{sentimentSource}</strong>
+        </span>
+        <span>
+          Socket <strong>{streamState}</strong>
+        </span>
+      </div>
+      <div className="anomaly-list">
+        {rankedEvents.map((event) => (
+          <button
+            key={event.slug}
+            type="button"
+            onClick={() => onPlayEvent(event.slug)}
+            title={`Replay ${event.title}`}
+          >
+            <span>{event.title.replace(/^LIVE:\s*/, "")}</span>
+            <strong>{event.maxGap.toFixed(0)}%</strong>
+            <small>{event.trigger}</small>
+          </button>
+        ))}
+      </div>
+      <p className="tool-note">Tap a ranked event to inject its worst gap into the center gauge.</p>
     </article>
   );
 }

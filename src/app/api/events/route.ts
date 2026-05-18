@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import {
   fallbackLiveEvents,
   normalizeApeWisdomLiveEvents,
+  normalizeFearGreedEvents,
   normalizeMarketTrendingEvents,
   normalizeRedditLiveEvents
 } from "@/lib/culture";
 import type {
   ApeWisdomPayload,
   CoinGeckoTrendingPayload,
+  FearGreedPayload,
   YahooTrendingPayload
 } from "@/lib/culture";
 
@@ -85,6 +87,30 @@ async function fetchCoinGeckoTrending(): Promise<CoinGeckoTrendingPayload> {
   }
 }
 
+async function fetchFearGreed(): Promise<FearGreedPayload> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch("https://api.alternative.me/fng/?limit=1&format=json", {
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        "user-agent": "reddit-vs-reality-emotion-engine/1.0"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Fear & Greed request failed: ${response.status}`);
+    }
+
+    return (await response.json()) as FearGreedPayload;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchRedditTop() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
@@ -115,14 +141,20 @@ async function fetchRedditTop() {
 export async function GET() {
   const timestamp = Date.now();
 
-  const [apeWisdomResult, yahooResult, coinGeckoResult] = await Promise.allSettled([
-    fetchApeWisdom(),
-    fetchYahooTrending(),
-    fetchCoinGeckoTrending()
-  ]);
+  const [apeWisdomResult, yahooResult, coinGeckoResult, fearGreedResult] =
+    await Promise.allSettled([
+      fetchApeWisdom(),
+      fetchYahooTrending(),
+      fetchCoinGeckoTrending(),
+      fetchFearGreed()
+    ]);
   const apeWisdomEvents =
     apeWisdomResult.status === "fulfilled"
       ? normalizeApeWisdomLiveEvents(apeWisdomResult.value, timestamp)
+      : [];
+  const fearGreedEvents =
+    fearGreedResult.status === "fulfilled"
+      ? normalizeFearGreedEvents(fearGreedResult.value, timestamp)
       : [];
   const marketTrendingEvents = normalizeMarketTrendingEvents(
     {
@@ -131,11 +163,15 @@ export async function GET() {
     },
     timestamp
   );
-  const noKeyEvents = [...apeWisdomEvents, ...marketTrendingEvents].slice(0, 10);
+  const noKeyEvents = [...apeWisdomEvents, ...fearGreedEvents, ...marketTrendingEvents].slice(
+    0,
+    12
+  );
 
   if (noKeyEvents.length) {
     const sources = [
       apeWisdomEvents.length ? "apewisdom" : "",
+      fearGreedEvents.length ? "fear-greed" : "",
       marketTrendingEvents.length ? "market-trending" : ""
     ].filter(Boolean);
 

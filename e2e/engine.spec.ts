@@ -9,6 +9,8 @@ test("renders the emotion engine and keeps canvases nonblank", async ({ page }, 
   await expect(page.getByText("DELUSION GAP")).toBeVisible();
   await expect(page.getByText("WSB Bingo")).toBeVisible();
   await expect(page.getByText("Live WSB events")).toBeVisible();
+  await expect(page.getByText("Degen Alert Tape")).toBeVisible();
+  await expect(page.getByText("Anomaly Radar")).toBeVisible();
   await expect(page.locator(".status-pill", { hasText: "Socket" })).toContainText("live", {
     ignoreCase: true,
     timeout: 20_000

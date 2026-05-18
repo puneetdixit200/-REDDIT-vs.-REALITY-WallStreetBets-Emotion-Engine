@@ -43,7 +43,7 @@ export type HistoricalEvent = {
   slug: string;
   title: string;
   caption: string;
-  source?: "historical" | "live" | "live-fallback" | "apewisdom" | "market-trending";
+  source?: "historical" | "live" | "live-fallback" | "apewisdom" | "market-trending" | "fear-greed";
   url?: string;
   updatedAt?: string;
   frames: HistoricalFrame[];
@@ -85,6 +85,20 @@ export type CoinGeckoTrendingPayload = {
       };
     };
   }>;
+};
+
+export type FearGreedPayload = {
+  data?: Array<{
+    value?: string | number;
+    value_classification?: string;
+    timestamp?: string | number;
+    time_until_update?: string | number;
+  }>;
+};
+
+export type RankedDelusionEvent = HistoricalEvent & {
+  maxGap: number;
+  trigger: string;
 };
 
 type RedditListing = {
@@ -525,6 +539,98 @@ export function normalizeMarketTrendingEvents(
     .slice(0, 4);
 
   return [...yahooEvents, ...geckoEvents].slice(0, 8);
+}
+
+export function normalizeFearGreedEvents(
+  payload: FearGreedPayload,
+  timestamp = Date.now()
+): HistoricalEvent[] {
+  const latest = payload.data?.[0];
+  const rawValue = Number(latest?.value);
+  const classification = decodeEntities(latest?.value_classification ?? "Neutral");
+
+  if (!latest || !Number.isFinite(rawValue)) {
+    return [];
+  }
+
+  const value = clamp(rawValue, 0, 100);
+  const sentiment = roundTo(clampSentiment((value - 50) / 50), 2);
+  const intensity = clamp(Math.abs(value - 50) / 50, 0.2, 1);
+  const inverseMove = sentiment >= 0 ? -1 : 1;
+  const eventTimestamp = toFiniteNumber(latest.timestamp);
+  const updatedAt =
+    eventTimestamp > 0
+      ? new Date(eventTimestamp * 1000).toISOString()
+      : new Date(timestamp).toISOString();
+
+  return [
+    {
+      slug: `live-fear-greed-${sanitizeSlug(classification)}`,
+      title: `LIVE: Crypto Fear & Greed prints ${classification} (${Math.round(value)})`,
+      caption: `Alternative.me crypto Fear & Greed is at ${Math.round(value)}/100, turning broad market psychology into a replayable delusion event.`,
+      source: "fear-greed",
+      url: "https://alternative.me/crypto/fear-and-greed-index/",
+      updatedAt,
+      frames: [
+        {
+          label: "Index Print",
+          sentiment: roundTo(sentiment * 0.64, 2),
+          priceChange: roundTo(sentiment * intensity * 4, 1),
+          volume: Math.round(500 + intensity * 900)
+        },
+        {
+          label: `${classification} Spiral`,
+          sentiment,
+          priceChange: roundTo(sentiment * intensity * 7, 1),
+          volume: Math.round(900 + intensity * 1500)
+        },
+        {
+          label: "Crowd Reality Split",
+          sentiment: roundTo(clampSentiment(sentiment + Math.sign(sentiment || 1) * 0.18), 2),
+          priceChange: roundTo(inverseMove * intensity * 18, 1),
+          volume: Math.round(1300 + intensity * 2200)
+        },
+        {
+          label: "Late Cycle Reprice",
+          sentiment: roundTo(sentiment * 0.44, 2),
+          priceChange: roundTo(inverseMove * intensity * 11, 1),
+          volume: Math.round(700 + intensity * 1200)
+        }
+      ]
+    }
+  ];
+}
+
+export function rankDelusionEvents(
+  events: HistoricalEvent[],
+  limit = 5
+): RankedDelusionEvent[] {
+  return events
+    .map((event) => {
+      const peak = event.frames.reduce(
+        (best, frame) => {
+          const gap = calculateDelusionGap(frame.sentiment, frame.priceChange);
+
+          return gap > best.maxGap
+            ? {
+                maxGap: gap,
+                trigger: frame.label
+              }
+            : best;
+        },
+        {
+          maxGap: 0,
+          trigger: event.frames[0]?.label ?? "No frames"
+        }
+      );
+
+      return {
+        ...event,
+        ...peak
+      };
+    })
+    .sort((a, b) => b.maxGap - a.maxGap)
+    .slice(0, limit);
 }
 
 export function fallbackLiveEvents(timestamp = Date.now()): HistoricalEvent[] {

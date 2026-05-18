@@ -439,9 +439,58 @@ h2 {
   font-family: "JetBrains Mono", monospace;
 }
 
+.alert-tape {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  max-width: 1680px;
+  margin: 14px auto 0;
+  border: 1px solid rgba(240, 185, 11, 0.28);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: rgba(7, 10, 15, 0.94);
+  box-shadow: inset 0 0 20px rgba(240, 185, 11, 0.05);
+}
+
+.alert-tape-critical {
+  border-color: rgba(234, 57, 67, 0.72);
+  box-shadow: 0 0 26px rgba(234, 57, 67, 0.22);
+}
+
+.alert-tape h2 {
+  color: var(--gold);
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.alert-tape-window {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.alert-tape-track {
+  display: flex;
+  width: max-content;
+  gap: 10px;
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  animation: tickerMove 42s linear infinite;
+}
+
+.alert-tape-track span {
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 8px;
+  padding: 6px 9px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .control-grid {
   display: grid;
-  grid-template-columns: 1.1fr 1fr 1fr 1.25fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   max-width: 1680px;
   margin: 14px auto 0;
@@ -644,6 +693,103 @@ input {
   color: var(--gold);
 }
 
+.chaos-card {
+  border-color: rgba(234, 57, 67, 0.28);
+  background:
+    linear-gradient(180deg, rgba(234, 57, 67, 0.08), rgba(0, 0, 0, 0)),
+    rgba(10, 14, 20, 0.94);
+}
+
+.chaos-readout {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(234, 57, 67, 0.2);
+  border-radius: 8px;
+  padding: 9px;
+  background: rgba(234, 57, 67, 0.07);
+}
+
+.chaos-readout span,
+.chaos-readout small,
+.source-grid span,
+.anomaly-list small {
+  color: var(--muted);
+}
+
+.chaos-readout strong {
+  color: var(--red);
+  font-family: "JetBrains Mono", monospace;
+  text-transform: uppercase;
+}
+
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.source-grid span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 7px;
+  font-size: 0.68rem;
+}
+
+.source-grid strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.anomaly-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.anomaly-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title gap"
+    "trigger gap";
+  gap: 3px 8px;
+  align-items: center;
+  min-height: 48px;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: left;
+}
+
+.anomaly-list span {
+  grid-area: title;
+  overflow: hidden;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.anomaly-list strong {
+  grid-area: gap;
+  color: var(--red);
+  font-family: "JetBrains Mono", monospace;
+}
+
+.anomaly-list small {
+  grid-area: trigger;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .made-with-credit {
   position: fixed;
   z-index: 20;
@@ -788,6 +934,10 @@ input {
   .price-flash {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .alert-tape {
+    grid-template-columns: 1fr;
   }
 
   .ekg-canvas,

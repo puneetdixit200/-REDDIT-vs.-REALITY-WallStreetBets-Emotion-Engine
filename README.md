@@ -11,6 +11,8 @@ Live data-art dashboard that compares WallStreetBets hype against crypto market 
 - BTC, ETH, and DOGE market prices from CoinGecko, plus live Coinbase WebSocket ticks.
 - A center "Delusion Gap" gauge that compares crowd sentiment with actual 24h price movement.
 - Live delusion events from ApeWisdom, Yahoo Finance trending symbols, and CoinGecko trending crypto.
+- A Degen Alert Tape that turns the current gap, socket state, price source, and live event source into a scrolling incident feed.
+- An Anomaly Radar that ranks the most disconnected live/historical events by maximum delusion gap and lets users inject them into the gauge.
 - WSB bingo, historical delusion replay, sentiment heatmap, and an "If You Listened" calculator.
 - Desktop and mobile responsive UI with Playwright coverage.
 
@@ -22,6 +24,7 @@ Live data-art dashboard that compares WallStreetBets hype against crypto market 
 | CoinGecko | Crypto market prices, 24h changes, charts, trending crypto | Good for display and research dashboards. Not for trade execution. |
 | Coinbase WebSocket | Live BTC/ETH/DOGE ticker updates | Good live exchange ticker data for UI updates. |
 | Yahoo Finance Trending | Backup live event signals | Useful public trend signal, but unofficial and can change. |
+| Alternative.me Fear & Greed | No-key crypto market psychology event | Useful broad mood signal. Daily cadence, not a live trade feed. |
 | Binance US, Kraken, Coinbase spot | Price fallbacks if CoinGecko is unavailable | Good fallback display sources. |
 | Synthetic fallback | Last-resort UI continuity | Keeps the app usable, but source badges expose fallback mode. |
 
@@ -31,8 +34,9 @@ Live data-art dashboard that compares WallStreetBets hype against crypto market 
 2. The app converts mention velocity, rank movement, and upvotes into a WSB mood score.
 3. `/api/prices` fetches CoinGecko market data and falls back to other price providers if needed.
 4. The browser opens Coinbase WebSocket and updates the price chart when real ticker messages arrive.
-5. `/api/events` builds live event cards from ApeWisdom, Yahoo Finance trending, and CoinGecko trending.
+5. `/api/events` builds live event cards from ApeWisdom, Alternative.me Fear & Greed, Yahoo Finance trending, and CoinGecko trending.
 6. The Delusion Gap compares normalized WSB sentiment against the selected coin's 24h price change.
+7. The Degen Alert Tape and Anomaly Radar summarize where the app is using live data, fallback data, or event replays.
 
 ## Local Development
 
