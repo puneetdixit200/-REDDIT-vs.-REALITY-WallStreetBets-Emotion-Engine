@@ -1,6 +1,8 @@
 import {
   calculateDelusionGap,
+  TRACKED_COINS,
   type SentimentPoint,
+  clamp,
   roundTo
 } from "./market";
 
@@ -41,10 +43,48 @@ export type HistoricalEvent = {
   slug: string;
   title: string;
   caption: string;
-  source?: "historical" | "live" | "live-fallback";
+  source?: "historical" | "live" | "live-fallback" | "apewisdom" | "market-trending";
   url?: string;
   updatedAt?: string;
   frames: HistoricalFrame[];
+};
+
+export type ApeWisdomRecord = {
+  ticker?: string;
+  name?: string;
+  mentions?: number | string;
+  upvotes?: number | string;
+  rank?: number | string;
+  rank_24h_ago?: number | string;
+  mentions_24h_ago?: number | string;
+};
+
+export type ApeWisdomPayload = {
+  results?: ApeWisdomRecord[];
+};
+
+export type YahooTrendingPayload = {
+  finance?: {
+    result?: Array<{
+      quotes?: Array<{
+        symbol?: string;
+      }>;
+    }>;
+  };
+};
+
+export type CoinGeckoTrendingPayload = {
+  coins?: Array<{
+    item?: {
+      id?: string;
+      name?: string;
+      symbol?: string;
+      market_cap_rank?: number;
+      data?: {
+        price_change_percentage_24h?: Record<string, number>;
+      };
+    };
+  }>;
 };
 
 type RedditListing = {
@@ -330,6 +370,163 @@ export function normalizeRedditLiveEvents(
     });
 }
 
+export function normalizeApeWisdomSentiment(
+  payload: ApeWisdomPayload,
+  timestamp = Date.now()
+): SentimentPoint[] {
+  const records = normalizeApeWisdomRecords(payload).slice(0, 24);
+  if (!records.length) {
+    return [];
+  }
+
+  const aggregate = calculateApeWisdomAggregate(records.slice(0, 12));
+  const leaders = records.slice(0, 3);
+  const leaderText = leaders
+    .map((record) => `${record.ticker} ${formatSignedPercent(record.mentionVelocity * 100)}`)
+    .join(", ");
+  const trackedPoints = TRACKED_COINS.map((coin, index) => {
+    const sentimentOffset = index === 0 ? 0 : index === 1 ? -0.04 : 0.06;
+    const sentiment = roundTo(clampSentiment(aggregate.sentiment + sentimentOffset), 2);
+
+    return {
+      ticker: coin.symbol,
+      sentiment,
+      volume: aggregate.volume,
+      timestamp: new Date(timestamp - index * 1000).toISOString(),
+      comment: `${coin.symbol} ApeWisdom WSB proxy: ${leaderText}; crowd mood ${(sentiment * 100).toFixed(0)}%.`,
+      source: "apewisdom" as const
+    };
+  });
+
+  const tickerPoints = records.map((record, index) => ({
+    ticker: record.ticker,
+    sentiment: roundTo(record.sentiment, 2),
+    volume: record.mentions,
+    timestamp: new Date(timestamp - (index + TRACKED_COINS.length) * 1000).toISOString(),
+    comment: `${record.ticker} ApeWisdom: ${record.mentions.toLocaleString()} WSB mentions, ${formatSignedPercent(record.mentionVelocity * 100)} vs 24h ago, rank #${record.rank}.`,
+    source: "apewisdom" as const
+  }));
+
+  return [...trackedPoints, ...tickerPoints].slice(0, 30);
+}
+
+export function normalizeApeWisdomLiveEvents(
+  payload: ApeWisdomPayload,
+  timestamp = Date.now()
+): HistoricalEvent[] {
+  const updatedAt = new Date(timestamp).toISOString();
+
+  return normalizeApeWisdomRecords(payload)
+    .sort((a, b) => b.eventHeat - a.eventHeat)
+    .slice(0, 6)
+    .map((record) => {
+      const sentiment = roundTo(record.sentiment, 2);
+      const realityMove = sentiment >= 0 ? -1 : 1;
+      const rankMove = record.rank24hAgo - record.rank;
+      const heat = clamp(record.eventHeat, 0.2, 1);
+
+      return {
+        slug: `live-apewisdom-${sanitizeSlug(record.ticker)}`,
+        title: `LIVE: ${record.ticker} mention velocity spike`,
+        caption: `${record.name} is rank #${record.rank} on ApeWisdom with ${record.mentions.toLocaleString()} WSB mentions and ${record.upvotes.toLocaleString()} upvotes.`,
+        source: "apewisdom" as const,
+        url: `https://apewisdom.io/stocks/${record.ticker.toLowerCase()}`,
+        updatedAt,
+        frames: [
+          {
+            label: "Mention Spark",
+            sentiment: roundTo(sentiment * 0.68, 2),
+            priceChange: roundTo(sentiment * heat * 5, 1),
+            volume: Math.max(160, Math.round(record.mentions * 4))
+          },
+          {
+            label: rankMove > 0 ? "Rank Ladder Climb" : "Crowd Reheats Ticker",
+            sentiment,
+            priceChange: roundTo(realityMove * heat * 8, 1),
+            volume: Math.max(300, record.upvotes)
+          },
+          {
+            label: "Reality Gap Check",
+            sentiment: roundTo(clampSentiment(sentiment + Math.sign(sentiment || 1) * 0.2), 2),
+            priceChange: roundTo(realityMove * heat * 18, 1),
+            volume: Math.max(450, record.upvotes + record.mentions)
+          },
+          {
+            label: "Exit Liquidity Debate",
+            sentiment: roundTo(sentiment * 0.42, 2),
+            priceChange: roundTo(realityMove * heat * 12, 1),
+            volume: Math.max(220, Math.round((record.upvotes + record.mentions) / 2))
+          }
+        ]
+      };
+    });
+}
+
+export function normalizeMarketTrendingEvents(
+  payload: {
+    yahoo?: YahooTrendingPayload;
+    coingecko?: CoinGeckoTrendingPayload;
+  },
+  timestamp = Date.now()
+): HistoricalEvent[] {
+  const updatedAt = new Date(timestamp).toISOString();
+  const seen = new Set<string>();
+  const yahooEvents = (payload.yahoo?.finance?.result ?? [])
+    .flatMap((result) => result.quotes ?? [])
+    .flatMap((quote, index) => {
+      const symbol = quote.symbol?.toUpperCase();
+      if (!symbol || seen.has(`yahoo-${symbol}`)) {
+        return [];
+      }
+
+      seen.add(`yahoo-${symbol}`);
+      const crypto = symbol.endsWith("-USD");
+      const sentiment = crypto ? 0.5 : 0.38;
+      const pressure = Math.max(0.4, 1 - index * 0.08);
+
+      return [
+        {
+          slug: `live-yahoo-${sanitizeSlug(symbol)}`,
+          title: `LIVE: ${symbol} trending across Yahoo Finance`,
+          caption: `${symbol} is surfacing in Yahoo Finance trending symbols without a paid API key.`,
+          source: "market-trending" as const,
+          updatedAt,
+          frames: buildTrendingFrames(sentiment, pressure, crypto ? "Crypto Search Surge" : "Ticker Search Surge")
+        }
+      ];
+    })
+    .slice(0, 4);
+
+  const geckoEvents = (payload.coingecko?.coins ?? [])
+    .flatMap((coin, index) => {
+      const item = coin.item;
+      const name = item?.name;
+      const symbol = item?.symbol?.toUpperCase();
+      if (!name || !symbol || seen.has(`gecko-${symbol}`)) {
+        return [];
+      }
+
+      seen.add(`gecko-${symbol}`);
+      const change24h = Number(item?.data?.price_change_percentage_24h?.usd ?? 0);
+      const sentiment = change24h >= 0 ? 0.56 : -0.42;
+      const pressure = Math.max(0.35, 1 - index * 0.1);
+
+      return [
+        {
+          slug: `live-coingecko-${sanitizeSlug(item?.id ?? symbol)}`,
+          title: `LIVE: ${name} crypto trend catches fire`,
+          caption: `${name} (${symbol}) is trending on CoinGecko with ${formatSignedPercent(change24h)} 24h USD movement.`,
+          source: "market-trending" as const,
+          updatedAt,
+          frames: buildTrendingFrames(sentiment, pressure, "Crypto Trend Pulse", change24h)
+        }
+      ];
+    })
+    .slice(0, 4);
+
+  return [...yahooEvents, ...geckoEvents].slice(0, 8);
+}
+
 export function fallbackLiveEvents(timestamp = Date.now()): HistoricalEvent[] {
   const updatedAt = new Date(timestamp).toISOString();
 
@@ -420,6 +617,132 @@ function inferLiveSentiment(title: string, score: number, comments: number): num
   }
 
   return clampSentiment(0.12 + Math.min(0.22, score / 20000) - debateDrag * 0.3);
+}
+
+type NormalizedApeWisdomRecord = {
+  ticker: string;
+  name: string;
+  mentions: number;
+  mentions24hAgo: number;
+  mentionVelocity: number;
+  upvotes: number;
+  rank: number;
+  rank24hAgo: number;
+  sentiment: number;
+  eventHeat: number;
+};
+
+function normalizeApeWisdomRecords(payload: ApeWisdomPayload): NormalizedApeWisdomRecord[] {
+  return (payload.results ?? [])
+    .flatMap((record) => {
+      const ticker = record.ticker?.toUpperCase();
+      const mentions = toFiniteNumber(record.mentions);
+      const upvotes = toFiniteNumber(record.upvotes);
+      const rank = toFiniteNumber(record.rank) || 999;
+      const rank24hAgo = toFiniteNumber(record.rank_24h_ago) || rank;
+      const mentions24hAgo = toFiniteNumber(record.mentions_24h_ago);
+
+      if (!ticker || mentions <= 0) {
+        return [];
+      }
+
+      const mentionVelocity =
+        mentions24hAgo > 0
+          ? clamp((mentions - mentions24hAgo) / Math.max(mentions24hAgo, 1), -2, 2)
+          : 0.75;
+      const rankMomentum = rank24hAgo > 0 ? clamp((rank24hAgo - rank) / rank24hAgo, -1, 1) : 0;
+      const upvoteHeat = clamp(Math.log10(Math.max(1, upvotes)) / 4, 0, 1);
+      const sentiment = clampSentiment(mentionVelocity * 0.46 + rankMomentum * 0.3 + upvoteHeat * 0.24);
+      const eventHeat = clamp(
+        Math.abs(mentionVelocity) * 0.42 + Math.max(0, rankMomentum) * 0.34 + upvoteHeat * 0.24,
+        0,
+        1
+      );
+
+      return [
+        {
+          ticker,
+          name: decodeEntities(record.name ?? ticker),
+          mentions: Math.round(mentions),
+          mentions24hAgo: Math.round(Math.max(0, mentions24hAgo)),
+          mentionVelocity,
+          upvotes: Math.round(Math.max(0, upvotes)),
+          rank: Math.round(rank),
+          rank24hAgo: Math.round(rank24hAgo),
+          sentiment,
+          eventHeat
+        }
+      ];
+    })
+    .sort((a, b) => a.rank - b.rank);
+}
+
+function calculateApeWisdomAggregate(records: NormalizedApeWisdomRecord[]) {
+  const weighted = records.reduce(
+    (total, record) => {
+      const weight = Math.max(1, record.mentions + record.upvotes * 0.05);
+      return {
+        score: total.score + record.sentiment * weight,
+        weight: total.weight + weight,
+        volume: total.volume + record.mentions
+      };
+    },
+    { score: 0, weight: 0, volume: 0 }
+  );
+
+  return {
+    sentiment: weighted.weight ? weighted.score / weighted.weight : 0,
+    volume: Math.max(1, Math.round(weighted.volume))
+  };
+}
+
+function buildTrendingFrames(
+  sentiment: number,
+  pressure: number,
+  ignitionLabel: string,
+  explicitPriceChange?: number
+): HistoricalFrame[] {
+  const priceChange = Number.isFinite(explicitPriceChange)
+    ? Number(explicitPriceChange)
+    : sentiment * pressure * 7;
+  const inverseMove = sentiment >= 0 ? -1 : 1;
+
+  return [
+    {
+      label: ignitionLabel,
+      sentiment: roundTo(sentiment * 0.72, 2),
+      priceChange: roundTo(priceChange * 0.45, 1),
+      volume: Math.round(600 * pressure)
+    },
+    {
+      label: "Trend Chasers Arrive",
+      sentiment: roundTo(sentiment, 2),
+      priceChange: roundTo(priceChange, 1),
+      volume: Math.round(1100 * pressure)
+    },
+    {
+      label: "Reality Spread Widens",
+      sentiment: roundTo(clampSentiment(sentiment + Math.sign(sentiment || 1) * 0.18), 2),
+      priceChange: roundTo(inverseMove * pressure * 13, 1),
+      volume: Math.round(1600 * pressure)
+    },
+    {
+      label: "Late Feed Refresh",
+      sentiment: roundTo(sentiment * 0.4, 2),
+      priceChange: roundTo(inverseMove * pressure * 8, 1),
+      volume: Math.round(800 * pressure)
+    }
+  ];
+}
+
+function toFiniteNumber(value: number | string | undefined): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatSignedPercent(value: number): string {
+  const rounded = roundTo(value, 1);
+  return `${rounded >= 0 ? "+" : ""}${rounded}%`;
 }
 
 function clampSentiment(value: number): number {

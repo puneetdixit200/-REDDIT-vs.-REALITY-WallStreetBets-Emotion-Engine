@@ -17,7 +17,7 @@ export type SentimentPoint = {
   volume: number;
   timestamp: string;
   comment: string;
-  source: "tradestie" | "synthetic" | "historical";
+  source: "tradestie" | "synthetic" | "historical" | "apewisdom";
 };
 
 export type PricePoint = {

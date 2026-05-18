@@ -5,6 +5,9 @@ import {
   detectBingoHits,
   fallbackLiveEvents,
   loadHistoricalEvent,
+  normalizeApeWisdomLiveEvents,
+  normalizeApeWisdomSentiment,
+  normalizeMarketTrendingEvents,
   normalizeRedditLiveEvents
 } from "./culture";
 
@@ -72,6 +75,113 @@ describe("WSB culture helpers", () => {
       url: "https://www.reddit.com/r/wallstreetbets/comments/abc123/nvda_calls/"
     });
     expect(liveEvents[0].frames).toHaveLength(4);
+  });
+
+  it("turns ApeWisdom WSB ticker momentum into tracked coin sentiment", () => {
+    const points = normalizeApeWisdomSentiment(
+      {
+        results: [
+          {
+            ticker: "MU",
+            name: "Micron Technology",
+            mentions: 294,
+            upvotes: 2387,
+            rank: 1,
+            rank_24h_ago: 1,
+            mentions_24h_ago: 134
+          },
+          {
+            ticker: "SPY",
+            name: "SPDR S&P 500 ETF Trust",
+            mentions: 149,
+            upvotes: 2499,
+            rank: 2,
+            rank_24h_ago: 8,
+            mentions_24h_ago: 40
+          }
+        ]
+      },
+      1779075000000
+    );
+
+    expect(points.slice(0, 3).map((point) => point.ticker)).toEqual(["BTC", "ETH", "DOGE"]);
+    expect(points[0]).toMatchObject({
+      source: "apewisdom",
+      timestamp: "2026-05-18T03:30:00.000Z"
+    });
+    expect(points[0].sentiment).toBeGreaterThan(0.4);
+    expect(points.some((point) => point.ticker === "MU")).toBe(true);
+    expect(points.map((point) => point.comment).join("\n")).toContain("ApeWisdom");
+  });
+
+  it("creates playable ApeWisdom live events from WSB mention spikes", () => {
+    const events = normalizeApeWisdomLiveEvents(
+      {
+        results: [
+          {
+            ticker: "RKLB",
+            name: "Rocket Lab USA",
+            mentions: 39,
+            upvotes: 188,
+            rank: 8,
+            rank_24h_ago: 41,
+            mentions_24h_ago: 5
+          }
+        ]
+      },
+      1779075000000
+    );
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      slug: "live-apewisdom-rklb",
+      source: "apewisdom",
+      title: "LIVE: RKLB mention velocity spike"
+    });
+    expect(events[0].frames).toHaveLength(4);
+    expect(events[0].frames[1].sentiment).toBeGreaterThan(0.5);
+  });
+
+  it("normalizes no-key Yahoo and CoinGecko trending payloads into live events", () => {
+    const events = normalizeMarketTrendingEvents(
+      {
+        yahoo: {
+          finance: {
+            result: [
+              {
+                quotes: [{ symbol: "BTC-USD" }, { symbol: "NVDA" }]
+              }
+            ]
+          }
+        },
+        coingecko: {
+          coins: [
+            {
+              item: {
+                id: "hyperliquid",
+                name: "Hyperliquid",
+                symbol: "HYPE",
+                market_cap_rank: 13,
+                data: {
+                  price_change_percentage_24h: {
+                    usd: 6.19
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      1779075000000
+    );
+
+    expect(events.map((event) => event.source)).toEqual([
+      "market-trending",
+      "market-trending",
+      "market-trending"
+    ]);
+    expect(events[0].title).toContain("BTC-USD");
+    expect(events[2].title).toContain("Hyperliquid");
   });
 
   it("provides deterministic live-event fallbacks", () => {

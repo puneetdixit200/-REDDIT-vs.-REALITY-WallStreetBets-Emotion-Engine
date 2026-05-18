@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import {
+  normalizeApeWisdomSentiment,
+  type ApeWisdomPayload
+} from "@/lib/culture";
+import {
   generateSyntheticSentiment,
   TRACKED_COINS,
   clamp,
@@ -56,6 +60,30 @@ async function fetchTradestie(): Promise<TradestieRecord[]> {
   }
 }
 
+async function fetchApeWisdom(): Promise<ApeWisdomPayload> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 9000);
+
+  try {
+    const response = await fetch("https://apewisdom.io/api/v1.0/filter/wallstreetbets", {
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        "user-agent": "reddit-vs-reality-emotion-engine/1.0"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`ApeWisdom request failed: ${response.status}`);
+    }
+
+    return (await response.json()) as ApeWisdomPayload;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function parseSentiment(record: TradestieRecord): number {
   const rawScore = Number(record.sentiment_score ?? record.sentiment);
   if (Number.isFinite(rawScore)) {
@@ -106,47 +134,73 @@ export async function GET() {
   const timestamp = Date.now();
 
   try {
-    const tradestie = normalizeTradestie(await fetchTradestie(), timestamp);
-    if (!tradestie.length) {
-      throw new Error("Tradestie returned no sentiment records");
+    const apeWisdom = normalizeApeWisdomSentiment(await fetchApeWisdom(), timestamp);
+    if (apeWisdom.length) {
+      return NextResponse.json(
+        {
+          items: apeWisdom,
+          comments: apeWisdom.map((item) => item.comment),
+          source: "apewisdom",
+          degraded: false,
+          updatedAt: new Date(timestamp).toISOString()
+        },
+        {
+          headers: {
+            "Cache-Control": "s-maxage=60, stale-while-revalidate=60"
+          }
+        }
+      );
     }
 
-    const trackedFallbacks = buildSyntheticBatch(timestamp).filter(
-      (point) => !tradestie.some((item) => item.ticker === point.ticker)
-    );
-    const items = [...trackedFallbacks, ...tradestie].slice(0, 30);
-
-    return NextResponse.json(
-      {
-        items,
-        comments: items.map((item) => item.comment),
-        source: "tradestie",
-        degraded: trackedFallbacks.length > 0,
-        updatedAt: new Date(timestamp).toISOString()
-      },
-      {
-        headers: {
-          "Cache-Control": "s-maxage=60, stale-while-revalidate=60"
-        }
+    throw new Error("ApeWisdom returned no WSB mention records");
+  } catch (apeWisdomError) {
+    try {
+      const tradestie = normalizeTradestie(await fetchTradestie(), timestamp);
+      if (!tradestie.length) {
+        throw new Error("Tradestie returned no sentiment records");
       }
-    );
-  } catch (error) {
-    const items = buildSyntheticBatch(timestamp);
 
-    return NextResponse.json(
-      {
-        items,
-        comments: items.map((item) => item.comment),
-        source: "synthetic",
-        degraded: true,
-        updatedAt: new Date(timestamp).toISOString(),
-        error: error instanceof Error ? error.message : "Unknown sentiment fetch error"
-      },
-      {
-        headers: {
-          "Cache-Control": "s-maxage=30, stale-while-revalidate=30"
+      const trackedFallbacks = buildSyntheticBatch(timestamp).filter(
+        (point) => !tradestie.some((item) => item.ticker === point.ticker)
+      );
+      const items = [...trackedFallbacks, ...tradestie].slice(0, 30);
+
+      return NextResponse.json(
+        {
+          items,
+          comments: items.map((item) => item.comment),
+          source: "tradestie",
+          degraded: trackedFallbacks.length > 0,
+          updatedAt: new Date(timestamp).toISOString()
+        },
+        {
+          headers: {
+            "Cache-Control": "s-maxage=60, stale-while-revalidate=60"
+          }
         }
-      }
-    );
+      );
+    } catch (tradestieError) {
+      const items = buildSyntheticBatch(timestamp);
+      const errors = [
+        apeWisdomError instanceof Error ? apeWisdomError.message : "Unknown ApeWisdom fetch error",
+        tradestieError instanceof Error ? tradestieError.message : "Unknown Tradestie fetch error"
+      ];
+
+      return NextResponse.json(
+        {
+          items,
+          comments: items.map((item) => item.comment),
+          source: "synthetic",
+          degraded: true,
+          updatedAt: new Date(timestamp).toISOString(),
+          error: errors.join("; ")
+        },
+        {
+          headers: {
+            "Cache-Control": "s-maxage=30, stale-while-revalidate=30"
+          }
+        }
+      );
+    }
   }
 }

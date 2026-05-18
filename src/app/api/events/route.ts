@@ -1,10 +1,89 @@
 import { NextResponse } from "next/server";
 import {
   fallbackLiveEvents,
+  normalizeApeWisdomLiveEvents,
+  normalizeMarketTrendingEvents,
   normalizeRedditLiveEvents
+} from "@/lib/culture";
+import type {
+  ApeWisdomPayload,
+  CoinGeckoTrendingPayload,
+  YahooTrendingPayload
 } from "@/lib/culture";
 
 export const dynamic = "force-dynamic";
+
+async function fetchApeWisdom(): Promise<ApeWisdomPayload> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch("https://apewisdom.io/api/v1.0/filter/wallstreetbets", {
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        "user-agent": "reddit-vs-reality-emotion-engine/1.0"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`ApeWisdom request failed: ${response.status}`);
+    }
+
+    return (await response.json()) as ApeWisdomPayload;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchYahooTrending(): Promise<YahooTrendingPayload> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch("https://query1.finance.yahoo.com/v1/finance/trending/US", {
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        "user-agent": "reddit-vs-reality-emotion-engine/1.0"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Yahoo trending request failed: ${response.status}`);
+    }
+
+    return (await response.json()) as YahooTrendingPayload;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchCoinGeckoTrending(): Promise<CoinGeckoTrendingPayload> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch("https://api.coingecko.com/api/v3/search/trending", {
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        "user-agent": "reddit-vs-reality-emotion-engine/1.0"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`CoinGecko trending request failed: ${response.status}`);
+    }
+
+    return (await response.json()) as CoinGeckoTrendingPayload;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 async function fetchRedditTop() {
   const controller = new AbortController();
@@ -35,6 +114,45 @@ async function fetchRedditTop() {
 
 export async function GET() {
   const timestamp = Date.now();
+
+  const [apeWisdomResult, yahooResult, coinGeckoResult] = await Promise.allSettled([
+    fetchApeWisdom(),
+    fetchYahooTrending(),
+    fetchCoinGeckoTrending()
+  ]);
+  const apeWisdomEvents =
+    apeWisdomResult.status === "fulfilled"
+      ? normalizeApeWisdomLiveEvents(apeWisdomResult.value, timestamp)
+      : [];
+  const marketTrendingEvents = normalizeMarketTrendingEvents(
+    {
+      yahoo: yahooResult.status === "fulfilled" ? yahooResult.value : undefined,
+      coingecko: coinGeckoResult.status === "fulfilled" ? coinGeckoResult.value : undefined
+    },
+    timestamp
+  );
+  const noKeyEvents = [...apeWisdomEvents, ...marketTrendingEvents].slice(0, 10);
+
+  if (noKeyEvents.length) {
+    const sources = [
+      apeWisdomEvents.length ? "apewisdom" : "",
+      marketTrendingEvents.length ? "market-trending" : ""
+    ].filter(Boolean);
+
+    return NextResponse.json(
+      {
+        events: noKeyEvents,
+        source: sources.join("+"),
+        updatedAt: new Date(timestamp).toISOString(),
+        degraded: apeWisdomEvents.length === 0
+      },
+      {
+        headers: {
+          "Cache-Control": "s-maxage=90, stale-while-revalidate=120"
+        }
+      }
+    );
+  }
 
   try {
     const events = normalizeRedditLiveEvents(await fetchRedditTop(), timestamp);
